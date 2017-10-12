@@ -12,6 +12,8 @@ import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.SparseIntArray;
+import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
@@ -91,6 +93,14 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     private HandlerThread mBackgroundHandlerThread;
     private Handler mBackgroundHandler;
 
+    private static SparseIntArray ORIENTATIONS = new SparseIntArray();
+    static {
+        ORIENTATIONS.append(Surface.ROTATION_0,0);
+        ORIENTATIONS.append(Surface.ROTATION_90,90);
+        ORIENTATIONS.append(Surface.ROTATION_180,180);
+        ORIENTATIONS.append(Surface.ROTATION_270,270);
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -125,12 +135,23 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String cameraId : cameraManager.getCameraIdList()) {
-                CameraCharacteristics mCameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
+                CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
                 //skipping the front camera because we will not be using front camera
-                if (mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
+                if (cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
+                int deviceOrientation = getWindowManager().getDefaultDisplay().getRotation();
+                int totalRoatation = sensorToDeviceRotation(cameraCharacteristics, deviceOrientation);
+                //create a boolean to check whether or not we are in portrait mode
+                boolean swapRoation = totalRoatation == 90 || totalRoatation == 270;
+                int rotatedWidth;
+                int rotatedHeight;
+                if(swapRoation){
+                    rotatedWidth = height;
+                    rotatedHeight = width;
+                }
                 mCameraId = cameraId;
+                return;
             }
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -162,5 +183,11 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    private static int sensorToDeviceRotation(CameraCharacteristics cameraCharacteristics, int deviceOrientation){
+        int sensorOrientation = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        deviceOrientation = ORIENTATIONS.get(deviceOrientation);
+        return (sensorOrientation + deviceOrientation + 360) % 360;
     }
 }
