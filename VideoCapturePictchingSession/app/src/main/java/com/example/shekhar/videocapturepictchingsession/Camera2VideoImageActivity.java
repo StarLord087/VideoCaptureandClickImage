@@ -1,7 +1,11 @@
 package com.example.shekhar.videocapturepictchingsession;
 
+import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -15,8 +19,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     private TextureView.SurfaceTextureListener mSurfaceTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            //to check if textureView is available
-            Toast.makeText(Camera2VideoImageActivity.this, "TextureView Available", Toast.LENGTH_SHORT).show();
+            //Toast removed call setup camera
+            setupCamera(width,height);
             
         }
 
@@ -64,7 +68,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         super.onResume();
 
         if(mTexturView.isAvailable()){
-
+            setupCamera(mTexturView.getWidth(), mTexturView.getHeight());
         }
         else {
             mTexturView.setSurfaceTextureListener(mSurfaceTextureListener);
@@ -77,6 +81,9 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         closeCamera();
         super.onPause();
     }
+
+    private String mCameraId;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +111,25 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
 
 
     }
+
+    //CameraManager is needed to access the camera resources and find out the number of cameras on a device
+    private void setupCamera(int width, int height){
+        CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            for(String cameraId : cameraManager.getCameraIdList()){
+                CameraCharacteristics mCameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
+                //skipping the front camera because we will not be using front camera
+                if(mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING)== CameraCharacteristics.LENS_FACING_FRONT){
+                    continue;
+                }
+                mCameraId = cameraId;
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 //closeCamera also frees up camera resources
     private void closeCamera(){
         if(mCameraDevice != null){
