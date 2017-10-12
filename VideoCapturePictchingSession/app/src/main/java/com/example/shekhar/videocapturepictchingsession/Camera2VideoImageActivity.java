@@ -12,6 +12,7 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.IntDef;
@@ -27,9 +28,13 @@ import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 public class Camera2VideoImageActivity extends AppCompatActivity {
@@ -117,9 +122,13 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     private boolean mIsRecording = false;
 
     public static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
+    public static final int REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
 
     private HandlerThread mBackgroundHandlerThread;
     private Handler mBackgroundHandler;
+
+    private File mVideoFolder;
+    private String mVideoFileName;
 
     private static SparseIntArray ORIENTATIONS = new SparseIntArray();
 
@@ -136,6 +145,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera2_video_image);
 
+        createVideoFolder();
 
         mTexturView = (TextureView) findViewById(R.id.textureView);
         mRecordImageButton = (ImageButton) findViewById(R.id.videoOnlineImageButton);
@@ -143,12 +153,11 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         mRecordImageButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(mIsRecording){
+                if (mIsRecording) {
                     mIsRecording = false;
                     mRecordImageButton.setImageResource(R.drawable.ic_radio_button_unchecked_teal_400_24dp);
-                }else {
-                    mIsRecording = true;
-                    mRecordImageButton.setImageResource(R.drawable.ic_radio_button_checked_red_600_24dp);
+                } else {
+                    checkWriteStoragePermission();
                 }
             }
         });
@@ -213,13 +222,12 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
                         PackageManager.PERMISSION_GRANTED) {
                     cameraManager.openCamera(mCameraId, mCameraDeviceStateCallback, mBackgroundHandler);
 
-                }else
-                {
-                   if(shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
-                       Toast.makeText(this, "Requires camera permission to function", Toast.LENGTH_SHORT).show();
-                   }
+                } else {
+                    if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+                        Toast.makeText(this, "Requires camera permission to function", Toast.LENGTH_SHORT).show();
+                    }
 
-                   requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_CAMERA_PERMISSION_RESULT);
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION_RESULT);
 
                 }
             } else {
@@ -232,9 +240,9 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         }
     }
 
-    private void startPreview(){
+    private void startPreview() {
         SurfaceTexture surfaceTexture = mTexturView.getSurfaceTexture();
-        surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),mPreviewSize.getHeight());
+        surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
 
         Surface previewSurface = new Surface(surfaceTexture);
 
@@ -256,7 +264,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     Toast.makeText(Camera2VideoImageActivity.this, "Something went wrong with start preview", Toast.LENGTH_SHORT).show();
                 }
-            },null);
+            }, null);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -317,13 +325,73 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        if(requestCode == REQUEST_CAMERA_PERMISSION_RESULT){
-            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){
+        if (requestCode == REQUEST_CAMERA_PERMISSION_RESULT) {
+            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
 
                 Toast.makeText(this, "Needs camera permission to function", Toast.LENGTH_SHORT).show();
 
             }
+        } else if (requestCode == REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION_RESULT) {
+            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Needs Write permission to save video", Toast.LENGTH_SHORT).show();
+            } else {
+                mIsRecording = true;
+                mRecordImageButton.setImageResource(R.drawable.ic_radio_button_checked_red_600_24dp);
+                try {
+                    createVideoFileName();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    //LOL
+                    Toast.makeText(this, "Permission granted ---- Deleting all user data", Toast.LENGTH_SHORT).show();
+                }
+
+            }
         }
 
+    }
+
+    //creating a folder in the public access to store videos
+    private void createVideoFolder() {
+        File movieFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
+        mVideoFolder = new File(movieFolder, "Camera2ApiVideoImage");
+        if (!movieFolder.exists()) {
+            movieFolder.mkdirs();
+        }
+    }
+
+    private File createVideoFileName() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String prepend = "VIDEO_" + timeStamp + "_";
+        File videoFile = File.createTempFile(prepend, ".mp4", mVideoFolder);
+        mVideoFileName = videoFile.getAbsolutePath();
+        return videoFile;
+
+    }
+
+    private void checkWriteStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                mIsRecording = true;
+                mRecordImageButton.setImageResource(R.drawable.ic_radio_button_checked_red_600_24dp);
+                try {
+                    createVideoFileName();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    Toast.makeText(this, "needs access to external storage to save videos", Toast.LENGTH_SHORT).show();
+                }
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_EXTERNAL_STORAGE_PERMISSION_RESULT);
+            }
+        } else {
+            mIsRecording = true;
+            mRecordImageButton.setImageResource(R.drawable.ic_radio_button_checked_red_600_24dp);
+            try {
+                createVideoFileName();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
