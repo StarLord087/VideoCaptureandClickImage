@@ -6,17 +6,23 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class Camera2VideoImageActivity extends AppCompatActivity {
     private TextureView mTexturView;
@@ -90,6 +96,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     }
 
     private String mCameraId;
+    private Size mPreviewSize;
+
     private HandlerThread mBackgroundHandlerThread;
     private Handler mBackgroundHandler;
 
@@ -140,16 +148,20 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
                 if (cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
+
+                StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
                 int deviceOrientation = getWindowManager().getDefaultDisplay().getRotation();
                 int totalRoatation = sensorToDeviceRotation(cameraCharacteristics, deviceOrientation);
                 //create a boolean to check whether or not we are in portrait mode
                 boolean swapRoation = totalRoatation == 90 || totalRoatation == 270;
-                int rotatedWidth;
-                int rotatedHeight;
+                int rotatedWidth = width;
+                int rotatedHeight = height;
                 if(swapRoation){
                     rotatedWidth = height;
                     rotatedHeight = width;
                 }
+                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), rotatedWidth, rotatedHeight);
                 mCameraId = cameraId;
                 return;
             }
@@ -189,5 +201,24 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         int sensorOrientation = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
         deviceOrientation = ORIENTATIONS.get(deviceOrientation);
         return (sensorOrientation + deviceOrientation + 360) % 360;
+    }
+
+    private static Size chooseOptimalSize(Size[] choices, int width, int height){
+        List<Size> bigEnough = new ArrayList<>();
+        for(Size option : choices){
+            //check for aspect ration matches our textureView
+            //value from the preview Sensor is big enough both width and height wise for out textureView
+            if(option.getHeight()  == option.getHeight()* height/width
+                    && option.getWidth() >= width && option.getHeight() >= height){
+                bigEnough.add(option);
+            }
+        }
+        if(bigEnough.size() > 0){
+            return Collections.min(bigEnough, new CompareSizeByArea());
+
+        }
+        else {
+            return choices[0];
+        }
     }
 }
