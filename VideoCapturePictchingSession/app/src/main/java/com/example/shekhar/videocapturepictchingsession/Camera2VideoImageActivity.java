@@ -5,9 +5,11 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
 import android.os.Handler;
@@ -25,6 +27,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -60,8 +63,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             mCameraDevice = camera;
-            //Toast to check if we have connection to the camera
-            Toast.makeText(Camera2VideoImageActivity.this, "Camera Connection made", Toast.LENGTH_SHORT).show();
+            //toastRemoved
+            startPreview();
 
         }
 
@@ -89,6 +92,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         if (mTexturView.isAvailable()) {
             setupCamera(mTexturView.getWidth(), mTexturView.getHeight());
             connectCamera();
+            startPreview();
         } else {
             mTexturView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -105,6 +109,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
 
     private String mCameraId;
     private Size mPreviewSize;
+
+    private CaptureRequest.Builder mCaptureRequestBuilder;
 
     public static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
 
@@ -202,6 +208,37 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
                 cameraManager.openCamera(mCameraId, mCameraDeviceStateCallback, mBackgroundHandler);
             }
 
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void startPreview(){
+        SurfaceTexture surfaceTexture = mTexturView.getSurfaceTexture();
+        surfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(),mPreviewSize.getHeight());
+
+        Surface previewSurface = new Surface(surfaceTexture);
+
+        try {
+            mCaptureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            mCaptureRequestBuilder.addTarget(previewSurface);
+
+            mCameraDevice.createCaptureSession(Arrays.asList(previewSurface), new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    try {
+                        session.setRepeatingRequest(mCaptureRequestBuilder.build(), null, mBackgroundHandler);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    Toast.makeText(Camera2VideoImageActivity.this, "Something went wrong with start preview", Toast.LENGTH_SHORT).show();
+                }
+            },null);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
