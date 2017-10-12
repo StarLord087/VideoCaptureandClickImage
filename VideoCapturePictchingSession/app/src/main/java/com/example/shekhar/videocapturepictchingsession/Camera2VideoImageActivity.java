@@ -1,6 +1,9 @@
 package com.example.shekhar.videocapturepictchingsession;
 
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraDevice;
+import android.support.annotation.IntDef;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.TextureView;
@@ -33,6 +36,29 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         }
     };
 
+    private CameraDevice mCameraDevice;
+    private CameraDevice.StateCallback mCameraDeviceStateCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(@NonNull CameraDevice camera) {
+            mCameraDevice = camera;
+
+        }
+
+        @Override
+        public void onDisconnected(@NonNull CameraDevice camera) {
+            //freeing camera resources
+            camera.close();
+            mCameraDevice = null;
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice camera, int error) {
+            camera.close();
+            mCameraDevice = null;
+
+        }
+    };
+
     @Override
     protected void onResume(){
         super.onResume();
@@ -43,6 +69,13 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         else {
             mTexturView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
+    }
+
+    @Override
+    protected void onPause() {
+
+        closeCamera();
+        super.onPause();
     }
 
     @Override
@@ -70,5 +103,13 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         }
 
 
+    }
+//closeCamera also frees up camera resources
+    private void closeCamera(){
+        if(mCameraDevice != null){
+            mCameraDevice.close();
+            mCameraDevice = null;
+
+        }
     }
 }
