@@ -1,16 +1,20 @@
 package com.example.shekhar.videocapturepictchingsession;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Size;
@@ -31,6 +35,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             //Toast removed call setup camera
             setupCamera(width, height);
+            connectCamera();
 
         }
 
@@ -55,6 +60,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             mCameraDevice = camera;
+            //Toast to check if we have connection to the camera
+            Toast.makeText(Camera2VideoImageActivity.this, "Camera Connection made", Toast.LENGTH_SHORT).show();
 
         }
 
@@ -81,6 +88,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
 
         if (mTexturView.isAvailable()) {
             setupCamera(mTexturView.getWidth(), mTexturView.getHeight());
+            connectCamera();
         } else {
             mTexturView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -90,7 +98,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     protected void onPause() {
         closeCamera();
 
-        startBackgroundThread();
+        closeBackgroundThread();
 
         super.onPause();
     }
@@ -98,15 +106,18 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     private String mCameraId;
     private Size mPreviewSize;
 
+    public static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
+
     private HandlerThread mBackgroundHandlerThread;
     private Handler mBackgroundHandler;
 
     private static SparseIntArray ORIENTATIONS = new SparseIntArray();
+
     static {
-        ORIENTATIONS.append(Surface.ROTATION_0,0);
-        ORIENTATIONS.append(Surface.ROTATION_90,90);
-        ORIENTATIONS.append(Surface.ROTATION_180,180);
-        ORIENTATIONS.append(Surface.ROTATION_270,270);
+        ORIENTATIONS.append(Surface.ROTATION_0, 0);
+        ORIENTATIONS.append(Surface.ROTATION_90, 90);
+        ORIENTATIONS.append(Surface.ROTATION_180, 180);
+        ORIENTATIONS.append(Surface.ROTATION_270, 270);
     }
 
 
@@ -157,7 +168,7 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
                 boolean swapRoation = totalRoatation == 90 || totalRoatation == 270;
                 int rotatedWidth = width;
                 int rotatedHeight = height;
-                if(swapRoation){
+                if (swapRoation) {
                     rotatedWidth = height;
                     rotatedHeight = width;
                 }
@@ -170,6 +181,32 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         }
     }
 
+    private void connectCamera() {
+        CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED) {
+                    cameraManager.openCamera(mCameraId, mCameraDeviceStateCallback, mBackgroundHandler);
+
+                }else
+                {
+                   if(shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
+                       Toast.makeText(this, "Requires camera permission to function", Toast.LENGTH_SHORT).show();
+                   }
+
+                   requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_CAMERA_PERMISSION_RESULT);
+
+                }
+            } else {
+                cameraManager.openCamera(mCameraId, mCameraDeviceStateCallback, mBackgroundHandler);
+            }
+
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
 
     //closeCamera also frees up camera resources
     private void closeCamera() {
@@ -197,28 +234,41 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         }
     }
 
-    private static int sensorToDeviceRotation(CameraCharacteristics cameraCharacteristics, int deviceOrientation){
+    private static int sensorToDeviceRotation(CameraCharacteristics cameraCharacteristics, int deviceOrientation) {
         int sensorOrientation = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
         deviceOrientation = ORIENTATIONS.get(deviceOrientation);
         return (sensorOrientation + deviceOrientation + 360) % 360;
     }
 
-    private static Size chooseOptimalSize(Size[] choices, int width, int height){
+    private static Size chooseOptimalSize(Size[] choices, int width, int height) {
         List<Size> bigEnough = new ArrayList<>();
-        for(Size option : choices){
+        for (Size option : choices) {
             //check for aspect ration matches our textureView
             //value from the preview Sensor is big enough both width and height wise for out textureView
-            if(option.getHeight()  == option.getHeight()* height/width
-                    && option.getWidth() >= width && option.getHeight() >= height){
+            if (option.getHeight() == option.getHeight() * height / width
+                    && option.getWidth() >= width && option.getHeight() >= height) {
                 bigEnough.add(option);
             }
         }
-        if(bigEnough.size() > 0){
+        if (bigEnough.size() > 0) {
             return Collections.min(bigEnough, new CompareSizeByArea());
 
-        }
-        else {
+        } else {
             return choices[0];
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if(requestCode == REQUEST_CAMERA_PERMISSION_RESULT){
+            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){
+
+                Toast.makeText(this, "Needs camera permission to function", Toast.LENGTH_SHORT).show();
+
+            }
+        }
+
     }
 }
