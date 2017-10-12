@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -20,8 +22,8 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             //Toast removed call setup camera
-            setupCamera(width,height);
-            
+            setupCamera(width, height);
+
         }
 
         @Override
@@ -64,25 +66,30 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     };
 
     @Override
-    protected void onResume(){
+    protected void onResume() {
         super.onResume();
 
-        if(mTexturView.isAvailable()){
+        startBackgroundThread();
+
+        if (mTexturView.isAvailable()) {
             setupCamera(mTexturView.getWidth(), mTexturView.getHeight());
-        }
-        else {
+        } else {
             mTexturView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
     }
 
     @Override
     protected void onPause() {
-
         closeCamera();
+
+        startBackgroundThread();
+
         super.onPause();
     }
 
     private String mCameraId;
+    private HandlerThread mBackgroundHandlerThread;
+    private Handler mBackgroundHandler;
 
 
     @Override
@@ -94,32 +101,33 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
         mTexturView = (TextureView) findViewById(R.id.textureView);
 
     }
-//Converting App to fullscreen  Sticky immersive mode
+
+    //Converting App to fullscreen  Sticky immersive mode
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
 
         View decorView = getWindow().getDecorView();
-        if(hasFocus){
+        if (hasFocus) {
             decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            |View.SYSTEM_UI_FLAG_FULLSCREEN
-            |View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            |View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            |View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            |View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         }
 
 
     }
 
     //CameraManager is needed to access the camera resources and find out the number of cameras on a device
-    private void setupCamera(int width, int height){
+    private void setupCamera(int width, int height) {
         CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
-            for(String cameraId : cameraManager.getCameraIdList()){
+            for (String cameraId : cameraManager.getCameraIdList()) {
                 CameraCharacteristics mCameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
                 //skipping the front camera because we will not be using front camera
-                if(mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING)== CameraCharacteristics.LENS_FACING_FRONT){
+                if (mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
                 mCameraId = cameraId;
@@ -130,12 +138,29 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
     }
 
 
-//closeCamera also frees up camera resources
-    private void closeCamera(){
-        if(mCameraDevice != null){
+    //closeCamera also frees up camera resources
+    private void closeCamera() {
+        if (mCameraDevice != null) {
             mCameraDevice.close();
             mCameraDevice = null;
 
+        }
+    }
+
+    private void startBackgroundThread() {
+        mBackgroundHandlerThread = new HandlerThread("Camera2VideoImageSimultaneous");
+        mBackgroundHandlerThread.start();
+        mBackgroundHandler = new Handler(mBackgroundHandlerThread.getLooper());
+    }
+
+    private void closeBackgroundThread() {
+        mBackgroundHandlerThread.quitSafely();
+        try {
+            mBackgroundHandlerThread.join();
+            mBackgroundHandlerThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 }
