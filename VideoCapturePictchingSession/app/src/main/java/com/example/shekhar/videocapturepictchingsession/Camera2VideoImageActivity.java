@@ -24,6 +24,7 @@ import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -112,6 +113,9 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
 
     private CaptureRequest.Builder mCaptureRequestBuilder;
 
+    private ImageButton mRecordImageButton;
+    private boolean mIsRecording = false;
+
     public static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
 
     private HandlerThread mBackgroundHandlerThread;
@@ -134,6 +138,20 @@ public class Camera2VideoImageActivity extends AppCompatActivity {
 
 
         mTexturView = (TextureView) findViewById(R.id.textureView);
+        mRecordImageButton = (ImageButton) findViewById(R.id.videoOnlineImageButton);
+
+        mRecordImageButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(mIsRecording){
+                    mIsRecording = false;
+                    mRecordImageButton.setImageResource(R.drawable.ic_radio_button_unchecked_teal_400_24dp);
+                }else {
+                    mIsRecording = true;
+                    mRecordImageButton.setImageResource(R.drawable.ic_radio_button_checked_red_600_24dp);
+                }
+            }
+        });
 
     }
 
